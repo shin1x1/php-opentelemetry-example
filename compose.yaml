@@ -1,0 +1,46 @@
+services:
+  nginx:
+    image: nginx:1.26
+    ports:
+      - '8000:80'
+    volumes:
+      - ./app:/app
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+    depends_on:
+      - php-fpm
+  php-fpm:
+    build: docker/php
+    volumes:
+      - ./app:/app
+      - ./docker/php/php-fpm/php-fpm.conf:/usr/local/etc/php-fpm.conf
+      - ./docker/php/xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+    working_dir: /app
+    depends_on:
+      mysql:
+        condition: service_healthy
+  mysql:
+    image: mysql:8.0
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+      MYSQL_DATABASE: app
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+  debug:
+    build: ./docker/debug
+    command: tail -f /dev/null
+    depends_on:
+      - php-fpm
+    pid: "service:php-fpm"
+    cap_add:
+      - SYS_PTRACE
+volumes:
+  mysql_data:
+
