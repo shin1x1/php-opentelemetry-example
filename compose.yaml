@@ -41,6 +41,10 @@ services:
     pid: "service:php-fpm"
     cap_add:
       - SYS_PTRACE
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    volumes:
+      - ./docker/otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
 volumes:
   mysql_data:
 
