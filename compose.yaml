@@ -51,6 +51,12 @@ services:
     image: otel/opentelemetry-collector-contrib
     volumes:
       - ./docker/otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+  jaeger:
+    image: jaegertracing/all-in-one
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - 16686:16686
 volumes:
   mysql_data:
 

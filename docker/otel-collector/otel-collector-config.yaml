@@ -8,7 +8,9 @@ processors:
 
 exporters:
   otlp:
-    endpoint: otelcol:4317
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
   debug:
     verbosity: detailed
 
