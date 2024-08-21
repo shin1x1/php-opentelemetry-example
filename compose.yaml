@@ -57,6 +57,32 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
       - 16686:16686
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+  node-exporter:
+    image: quay.io/prometheus/node-exporter
+    pid: "service:php-fpm"
+  loki:
+    image: grafana/loki:3.1.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
 volumes:
   mysql_data:
 
