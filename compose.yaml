@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.26
+    image: nginx:1.26-otel
     ports:
       - '8000:80'
     volumes:
@@ -9,6 +9,7 @@ services:
       - ./docker/nginx/conf.d:/etc/nginx/conf.d
     depends_on:
       - php-fpm
+      - otel-collector
   php-fpm:
     build: docker/php
     volumes:

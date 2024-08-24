@@ -6,6 +6,7 @@ use Monolog\Logger;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
+use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use Psr\Log\LogLevel;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -25,7 +26,9 @@ $tracer = Globals::tracerProvider()
         '0.0.1',
         'https://opentelemetry.io/schemas/1.24.0',
     );
-$span = $tracer->spanBuilder('span1')->startSpan();
+$span = $tracer->spanBuilder('trace.php')
+    ->setParent(Globals::propagator()->extract(getallheaders(), ArrayAccessGetterSetter::getInstance()))
+    ->startSpan();
 $scope = $span->activate();
 
 try {
