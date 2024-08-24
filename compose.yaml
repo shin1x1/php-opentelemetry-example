@@ -48,9 +48,9 @@ services:
     cap_add:
       - SYS_PTRACE
   otel-collector:
-    image: otel/opentelemetry-collector-contrib
+    image: otel/opentelemetry-collector
     volumes:
-      - ./docker/otel-collector/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      - ./docker/otel-collector/otel-collector-config.yaml:/etc/otelcol/config.yaml
   jaeger:
     image: jaegertracing/all-in-one
     environment:
