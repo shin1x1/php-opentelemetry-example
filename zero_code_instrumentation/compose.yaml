@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.26-otel
+    image: nginx:1.26
     ports:
       - '8000:80'
     volumes:
@@ -19,9 +19,7 @@ services:
     working_dir: /app
     environment:
       OTEL_PHP_AUTOLOAD_ENABLED: true
-      OTEL_SERVICE_NAME: App
-      OTEL_TRACES_EXPORTER: otlp
-      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_SERVICE_NAME: app
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     depends_on:
       mysql:
