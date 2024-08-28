@@ -3,6 +3,7 @@ install: up
 	docker compose exec php-fpm composer install
 	cd app && (test -f .env || cp -a .env.example .env && docker compose exec php-fpm php artisan key:generate)
 	docker compose exec php-fpm php artisan migrate
+	docker compose exec php-fpm php artisan db:seed
 
 .PHONY: up
 up:
