@@ -1,0 +1,12 @@
+{
+    "require": {
+        "open-telemetry/sdk": "^1.0",
+        "open-telemetry/exporter-otlp": "^1.0",
+        "php-http/guzzle7-adapter": "^1.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": false
+        }
+    }
+}

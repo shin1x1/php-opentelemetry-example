@@ -1,0 +1,21 @@
+services:
+  php:
+    build: ./docker/php
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      OTEL_PHP_AUTOLOAD_ENABLED: true
+      OTEL_SERVICE_NAME: app
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  otel-collector:
+    image: otel/opentelemetry-collector
+    volumes:
+      - ./docker/otel-collector/otel-collector-config.yaml:/etc/otelcol/config.yaml
+  jaeger:
+    image: jaegertracing/all-in-one
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true" # OTLP コレクタを有効
+    ports:
+      - 4318:4318 # OTLP データ受付（Protobuf over HTTP or JSON over HTTP）
+      - 16686:16686 # Web UI
