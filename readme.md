@@ -1,9 +1,6 @@
-## Usage
+# PHP + OpenTelemetry トレース計装サンプル
 
-```shell
-$ make
-```
+- マニュアル計装（手動軽装）: https://github.com/shin1x1/php-opentelemetry-example/tree/main/manual_instrumentation
+- ゼロコード計装（自動計装）: https://github.com/shin1x1/php-opentelemetry-example/tree/main/zero_code_instrumentation
 
-- Application: http://localhost:8000/trace.php
-- Grafana: http://localhost:3000
-  - user: admin / pass: admin
+- blog: https://zenn.dev/shin1x1/articles/2021-07-18-php-opentelemetry
