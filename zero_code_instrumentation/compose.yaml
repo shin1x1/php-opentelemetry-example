@@ -21,6 +21,7 @@ services:
       OTEL_PHP_AUTOLOAD_ENABLED: true
       OTEL_SERVICE_NAME: app
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_PHP_DISABLED_INSTRUMENTATIONS: pdo
     depends_on:
       mysql:
         condition: service_healthy

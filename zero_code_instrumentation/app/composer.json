@@ -10,6 +10,7 @@
         "laravel/tinker": "^2.9",
         "open-telemetry/exporter-otlp": "^1.0",
         "open-telemetry/opentelemetry-auto-laravel": "^0.0.27",
+        "open-telemetry/opentelemetry-auto-pdo": "^0.0.15",
         "open-telemetry/sdk": "^1.0"
     },
     "require-dev": {
@@ -25,7 +26,10 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "files": [
+            "app/Instrumentation/register.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
