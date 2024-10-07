@@ -3,16 +3,13 @@ declare(strict_types=1);
 
 namespace App\Instrumentation\Pdo;
 
+use App\Instrumentation\Util\TraceUtil;
 use OpenTelemetry\API\Instrumentation\CachedInstrumentation;
-use OpenTelemetry\API\Trace\Span;
-use OpenTelemetry\API\Trace\SpanBuilderInterface;
-use OpenTelemetry\API\Trace\SpanKind;
-use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\Context\Context;
 use OpenTelemetry\SemConv\TraceAttributes;
 use PDO;
 use PDOStatement;
 use Throwable;
+use WeakMap;
 use function OpenTelemetry\Instrumentation\hook;
 
 final class PdoInstrumentation
@@ -24,45 +21,51 @@ final class PdoInstrumentation
             null,
             'https://opentelemetry.io/schemas/1.24.0'
         );
-        $boundParameters = new BoundParameters();
+        $boundParameters = new WeakMap();
 
         hook(
             PDO::class,
             '__construct',
             pre: static function (PDO $pdo, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation) {
-                $builder = self::makeBuilder($instrumentation, 'PDO::__construct', $function, $class, $filename, $lineno)
-                    ->setSpanKind(SpanKind::KIND_CLIENT);
+                $span = TraceUtil::start(
+                    $instrumentation,
+                    $class,
+                    $function,
+                    $filename,
+                    $lineno,
+                );
                 if ($class === PDO::class) {
-                    $builder
+                    $span
                         ->setAttribute(TraceAttributes::DB_CONNECTION_STRING, $params[0] ?? 'unknown')
                         ->setAttribute(TraceAttributes::DB_USER, $params[1] ?? 'unknown');
                 }
-                $parent = Context::getCurrent();
-                $span = $builder->startSpan();
-                Context::storage()->attach($span->storeInContext($parent));
             },
             post: static function (PDO $pdo, array $params, mixed $statement, ?Throwable $exception) {
-                $scope = Context::storage()->scope();
-                if (!$scope) {
-                    return;
-                }
-                self::end($exception);
+                TraceUtil::end($exception);
             }
+        );
+
+        hook(
+            PDO::class,
+            'prepare',
+            post: static function (PDO $pdo, array $params, PDOStatement $statement) use ($instrumentation, $boundParameters) {
+                $boundParameters[$statement] = new BoundParameters();
+            },
         );
 
         hook(
             PDOStatement::class,
             'bindValue',
-            pre: static function (PDOStatement $statement, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
-                $boundParameters->add($params[0], $params[1]);
+            post: static function (PDOStatement $statement, array $params) use ($instrumentation, $boundParameters) {
+                $boundParameters[$statement]->add($params[0], $params[1]);
             },
         );
 
         hook(
             PDOStatement::class,
             'bindParam',
-            pre: static function (PDOStatement $statement, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
-                $boundParameters->add($params[0], $params[1]);
+            post: static function (PDOStatement $statement, array $params) use ($instrumentation, $boundParameters) {
+                $boundParameters[$statement]->add($params[0], $params[1]);
             },
         );
 
@@ -72,10 +75,10 @@ final class PdoInstrumentation
                 $function,
                 pre: static function (PDO $pdo, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
                     $sql = $params[0] ?? '';
-                    static::startWithSql($instrumentation, $sql, $function, $class, $filename, $lineno);
+                    TraceUtil::startWithSql($instrumentation, $sql, [], $class, $function, $filename, $lineno);
                 },
                 post: static function (PDO $pdo, array $params, mixed $retval, ?Throwable $exception) {
-                    self::end($exception);
+                    TraceUtil::end($exception);
                 }
             );
         }
@@ -85,88 +88,38 @@ final class PdoInstrumentation
                 PDO::class,
                 $function,
                 pre: static function (PDO $pdo, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
-                    static::start($instrumentation, $function, $class, $filename, $lineno);
+                    TraceUtil::start($instrumentation, $class, $function, $filename, $lineno);
                 },
                 post: static function (PDO $pdo, array $params, mixed $retval, ?Throwable $exception) {
-                    self::end($exception);
+                    TraceUtil::end($exception);
                 }
             );
         }
 
-        foreach (['execute', 'fetch', 'fetchAll', 'fetchColumn'] as $function) {
-            hook(
-                PDOStatement::class,
-                $function,
-                pre: static function (PDOStatement $statement, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
-                    self::startWithSql(
-                        $instrumentation,
-                        $statement->queryString . ' ' . json_encode($boundParameters),
-                        $function,
-                        $class,
-                        $filename,
-                        $lineno
-                    );
-                },
-                post: static function (PDOStatement $statement, array $params, mixed $retval, ?Throwable $exception) {
-                    self::end($exception);
+        hook(
+            PDOStatement::class,
+            'execute',
+            pre: static function (PDOStatement $statement, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation, $boundParameters) {
+                if (count($params) > 0) {
+                    $boundParameter = array_values($params[0]);
+                } else {
+                    $boundParameter = $boundParameters[$statement]?->toArray() ?? [];
                 }
-            );
-        }
-    }
 
-    private static function makeBuilder(
-        CachedInstrumentation $instrumentation,
-        string                $name,
-        string                $function,
-        string                $class,
-        ?string               $filename,
-        ?int                  $lineno
-    ): SpanBuilderInterface
-    {
-        /** @psalm-suppress ArgumentTypeCoercion */
-        return $instrumentation->tracer()
-            ->spanBuilder($name)
-            ->setAttribute(TraceAttributes::CODE_FUNCTION, $function)
-            ->setAttribute(TraceAttributes::CODE_NAMESPACE, $class)
-            ->setAttribute(TraceAttributes::CODE_FILEPATH, $filename)
-            ->setAttribute(TraceAttributes::CODE_LINENO, $lineno);
-    }
-
-    private static function start(CachedInstrumentation $instrumentation, string $function, string $class, ?string $filename, ?int $lineno): void
-    {
-        $builder = self::makeBuilder($instrumentation, $class . '::' . $function, $function, $class, $filename, $lineno)
-            ->setSpanKind(SpanKind::KIND_CLIENT);
-        $span = $builder->startSpan();
-
-        Context::storage()->attach($span->storeInContext(Context::getCurrent()));
-    }
-
-    private static function startWithSql(CachedInstrumentation $instrumentation, string $sql, string $function, string $class, ?string $filename, ?int $lineno): void
-    {
-        $titleSql = mb_strlen($sql) > 20 ? mb_substr($sql, 0, 20) . '...' : $sql;
-
-        $builder = self::makeBuilder($instrumentation, $class . '::' . $function . ' ' . $titleSql, $function, $class, $filename, $lineno)
-            ->setSpanKind(SpanKind::KIND_CLIENT)
-            ->setAttribute(TraceAttributes::DB_STATEMENT, $sql);
-        $span = $builder->startSpan();
-
-        Context::storage()->attach($span->storeInContext(Context::getCurrent()));
-    }
-
-    private static function end(?Throwable $exception): void
-    {
-        $scope = Context::storage()->scope();
-        if (!$scope) {
-            return;
-        }
-        $scope->detach();
-        $span = Span::fromContext($scope->context());
-        if ($exception) {
-            $span->recordException($exception, [TraceAttributes::EXCEPTION_ESCAPED => true]);
-            $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
-        }
-
-        $span->end();
+                TraceUtil::startWithSql(
+                    $instrumentation,
+                    $statement->queryString,
+                    $boundParameter,
+                    $class,
+                    $function,
+                    $filename,
+                    $lineno
+                );
+            },
+            post: static function (PDOStatement $statement, array $params, mixed $retval, ?Throwable $exception) {
+                TraceUtil::end($exception);
+            }
+        );
     }
 }
 
